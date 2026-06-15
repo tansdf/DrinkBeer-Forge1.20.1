@@ -10,18 +10,20 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.Containers;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -60,12 +62,26 @@ public class BeerBarrelBlock extends Block implements EntityBlock {
         if (!world.isClientSide) {
             world.playSound(null, pos, SoundEvents.BARREL_OPEN, SoundSource.BLOCKS, 1f, 1f);
 
-            BeerBarrelBlockEntity beerBarrelBlockEntity = (BeerBarrelBlockEntity) world.getBlockEntity(pos);
-            NetworkHooks.openScreen((ServerPlayer) player, beerBarrelBlockEntity, (FriendlyByteBuf packerBuffer) -> {
-                packerBuffer.writeBlockPos(beerBarrelBlockEntity.getBlockPos());
-            });
+            if (world.getBlockEntity(pos) instanceof BeerBarrelBlockEntity beerBarrelBlockEntity) {
+                NetworkHooks.openScreen((ServerPlayer) player, beerBarrelBlockEntity, (FriendlyByteBuf packerBuffer) -> {
+                    packerBuffer.writeBlockPos(beerBarrelBlockEntity.getBlockPos());
+                });
+            }
         }
         return InteractionResult.sidedSuccess(world.isClientSide);
+    }
+
+    @Override
+    public void onRemove(BlockState state, Level world, BlockPos pos, BlockState newState, boolean isMoving) {
+        if (!state.is(newState.getBlock())) {
+            if (world.getBlockEntity(pos) instanceof BeerBarrelBlockEntity beerBarrelBlockEntity) {
+                for (ItemStack itemStack : beerBarrelBlockEntity.getDrops()) {
+                    Containers.dropItemStack(world, pos.getX(), pos.getY(), pos.getZ(), itemStack);
+                }
+                world.updateNeighbourForOutputSignal(pos, this);
+            }
+        }
+        super.onRemove(state, world, pos, newState, isMoving);
     }
 
 

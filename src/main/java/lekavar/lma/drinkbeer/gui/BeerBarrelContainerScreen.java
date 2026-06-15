@@ -13,6 +13,8 @@ public class BeerBarrelContainerScreen extends AbstractContainerScreen<BeerBarre
     private static final ResourceLocation BEER_BARREL_CONTAINER_RESOURCE = ResourceLocation.fromNamespaceAndPath("drinkbeer", "textures/gui/container/beer_barrel.png");
     private static final int TEXTURE_WIDTH = 176;
     private static final int TEXTURE_HEIGHT = 166;
+    private static final int OUTPUT_SLOT_X = 128;
+    private static final int OUTPUT_SLOT_Y = 34;
     private final Inventory inventory;
 
     public BeerBarrelContainerScreen(BeerBarrelContainer screenContainer, Inventory inv, Component title) {
@@ -26,6 +28,7 @@ public class BeerBarrelContainerScreen extends AbstractContainerScreen<BeerBarre
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
         renderBackground(guiGraphics);
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
+        renderLockedOutputOverlay(guiGraphics);
         renderTooltip(guiGraphics, mouseX, mouseY);
     }
 
@@ -43,13 +46,20 @@ public class BeerBarrelContainerScreen extends AbstractContainerScreen<BeerBarre
     }
 
     public String convertTickToTime(int tick) {
-        String result;
         if (tick > 0) {
-            double time = tick / 20;
-            int m = (int) (time / 60);
-            int s = (int) (time % 60);
-            result = m + ":" + s;
-        } else result = "";
-        return result;
+            int totalSeconds = (tick + 19) / 20;
+            int minutes = totalSeconds / 60;
+            int seconds = totalSeconds % 60;
+            return String.format("%02d:%02d", minutes, seconds);
+        }
+        return "";
+    }
+
+    private void renderLockedOutputOverlay(GuiGraphics guiGraphics) {
+        if (menu.getIsBrewing()) {
+            int x = this.leftPos + OUTPUT_SLOT_X;
+            int y = this.topPos + OUTPUT_SLOT_Y;
+            guiGraphics.fill(x, y, x + 16, y + 16, 0x99000000);
+        }
     }
 }

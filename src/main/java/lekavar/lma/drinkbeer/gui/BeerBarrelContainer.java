@@ -16,7 +16,6 @@ import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.items.SlotItemHandler;
 import net.minecraftforge.items.wrapper.InvWrapper;
 
@@ -35,10 +34,10 @@ public class BeerBarrelContainer extends AbstractContainerMenu {
         // Plauer Inventory
         layoutPlayerInventorySlots(8, 84, new InvWrapper(playerInventory));
         // Input Ingredients
-        addSlot(new Slot(brewingSpace, 0, 28, 26));
-        addSlot(new Slot(brewingSpace, 1, 46, 26));
-        addSlot(new Slot(brewingSpace, 2, 28, 44));
-        addSlot(new Slot(brewingSpace, 3, 46, 44));
+        addSlot(new IngredientSlot(brewingSpace, 0, 28, 26));
+        addSlot(new IngredientSlot(brewingSpace, 1, 46, 26));
+        addSlot(new IngredientSlot(brewingSpace, 2, 28, 44));
+        addSlot(new IngredientSlot(brewingSpace, 3, 46, 44));
         // Empty Cup
         addSlot(new CupSlot(brewingSpace, 4, 73, 50));
         // Output
@@ -156,14 +155,7 @@ public class BeerBarrelContainer extends AbstractContainerMenu {
 
     @Override
     public void removed(Player player) {
-        if (!player.level().isClientSide()) {
-            // Return Item to Player;
-            for (int i = 0; i < 5; i++) {
-                if (!brewingSpace.getItem(i).isEmpty()) {
-                    ItemHandlerHelper.giveItemToPlayer(player, brewingSpace.removeItem(i, brewingSpace.getItem(i).getCount()));
-                }
-            }
-        } else {
+        if (player.level().isClientSide()) {
             // Play Closing Barrel Sound
             player.level().playSound(player, player.blockPosition(), SoundEvents.BARREL_CLOSE, SoundSource.BLOCKS, 1f, 1f);
         }
@@ -179,6 +171,22 @@ public class BeerBarrelContainer extends AbstractContainerMenu {
         @Override
         public boolean mayPlace(ItemStack p_75214_1_) {
             return p_75214_1_.getItem() == ItemRegistry.EMPTY_BEER_MUG.get();
+        }
+    }
+
+    static class IngredientSlot extends Slot {
+        public IngredientSlot(Container p_i1824_1_, int p_i1824_2_, int p_i1824_3_, int p_i1824_4_) {
+            super(p_i1824_1_, p_i1824_2_, p_i1824_3_, p_i1824_4_);
+        }
+
+        @Override
+        public int getMaxStackSize() {
+            return 1;
+        }
+
+        @Override
+        public int getMaxStackSize(ItemStack stack) {
+            return 1;
         }
     }
 

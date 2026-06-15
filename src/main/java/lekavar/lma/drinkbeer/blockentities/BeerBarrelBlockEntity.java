@@ -6,12 +6,13 @@ import lekavar.lma.drinkbeer.recipes.IBrewingInventory;
 import lekavar.lma.drinkbeer.registries.BlockEntityRegistry;
 import lekavar.lma.drinkbeer.registries.RecipeRegistry;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.ContainerHelper;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
-import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -22,13 +23,43 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.ItemStackHandler;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
 
 public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, IBrewingInventory {
-    private NonNullList<ItemStack> items = NonNullList.withSize(6, ItemStack.EMPTY);
+    private static final int INGREDIENT_SLOT_START = 0;
+    private static final int INGREDIENT_SLOT_END = 3;
+    private static final int CUP_SLOT = 4;
+    private static final int OUTPUT_SLOT = 5;
+    private static final int SLOT_COUNT = 6;
+    private final ItemStackHandler items = new ItemStackHandler(SLOT_COUNT) {
+        @Override
+        protected void onContentsChanged(int slot) {
+            setChanged();
+        }
+
+        @Override
+        public boolean isItemValid(int slot, @Nonnull ItemStack stack) {
+            return slot != OUTPUT_SLOT && (slot != CUP_SLOT || isEmptyCup(stack));
+        }
+
+        @Override
+        public int getSlotLimit(int slot) {
+            if (slot >= INGREDIENT_SLOT_START && slot <= INGREDIENT_SLOT_END) {
+                return 1;
+            }
+            return super.getSlotLimit(slot);
+        }
+    };
+    private final IItemHandler automationHandler = new AutomationItemHandler();
+    private final LazyOptional<IItemHandler> automationHandlerOptional = LazyOptional.of(() -> automationHandler);
     // This int will not only indicate remainingBrewTime, but also represent Standard Brewing Time if valid in "waiting for ingredients" stage
     private int remainingBrewTime;
     // 0 - waiting for ingredient, 1 - brewing, 2 - waiting for pickup product
@@ -109,7 +140,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
         // waiting for pickup
         else if (statusCode == 2) {
             // Reset Stage to 0 (waiting for ingredients) after pickup Item
-            if (items.get(5).isEmpty()) {
+            if (items.getStackInSlot(OUTPUT_SLOT).isEmpty()) {
                 statusCode = 0;
                 setChanged();
             }
@@ -138,14 +169,14 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     private void startBrewing(BrewingRecipe recipe) {
         // Pre-set bear to output Slot
         // This Step must be done first
-        items.set(5, recipe.assemble(this, level.registryAccess()));
+        items.setStackInSlot(OUTPUT_SLOT, recipe.assemble(this, level.registryAccess()));
         // Consume Ingredient & Cup;
-        for (int i = 0; i < 4; i++) {
-            ItemStack ingred = items.get(i);
-            if (isBucket(ingred)) items.set(i, Items.BUCKET.getDefaultInstance());
+        for (int i = INGREDIENT_SLOT_START; i <= INGREDIENT_SLOT_END; i++) {
+            ItemStack ingred = items.getStackInSlot(i);
+            if (isBucket(ingred)) items.setStackInSlot(i, Items.BUCKET.getDefaultInstance());
             else ingred.shrink(1);
         }
-        items.get(4).shrink(recipe.getRequiredCupCount());
+        items.getStackInSlot(CUP_SLOT).shrink(recipe.getRequiredCupCount());
         // Set Remaining Time;
         remainingBrewTime = recipe.getBrewingTime();
         // Change Status Code to 1 (brewing)
@@ -159,13 +190,13 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     }
 
     private void clearPreview() {
-        items.set(5, ItemStack.EMPTY);
+        items.setStackInSlot(OUTPUT_SLOT, ItemStack.EMPTY);
         remainingBrewTime = 0;
         setChanged();
     }
 
     private void showPreview(BrewingRecipe recipe) {
-        items.set(5, recipe.assemble(this, level.registryAccess()));
+        items.setStackInSlot(OUTPUT_SLOT, recipe.assemble(this, level.registryAccess()));
         remainingBrewTime = recipe.getBrewingTime();
         setChanged();
     }
@@ -175,8 +206,8 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     @Override
     public List<ItemStack> getIngredients() {
         NonNullList<ItemStack> sample = NonNullList.withSize(4, ItemStack.EMPTY);
-        for (int i = 0; i < 4; i++) {
-            sample.set(i, items.get(i).copy());
+        for (int i = INGREDIENT_SLOT_START; i <= INGREDIENT_SLOT_END; i++) {
+            sample.set(i, items.getStackInSlot(i).copy());
         }
         return sample;
     }
@@ -184,13 +215,13 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     @Nonnull
     @Override
     public ItemStack getCup() {
-        return items.get(4).copy();
+        return items.getStackInSlot(CUP_SLOT).copy();
     }
 
     @Override
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
-        ContainerHelper.saveAllItems(tag, this.items);
+        tag.put("Inventory", this.items.serializeNBT());
         tag.putShort("RemainingBrewTime", (short) this.remainingBrewTime);
         tag.putShort("statusCode", (short) this.statusCode);
     }
@@ -198,8 +229,15 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     @Override
     public void load(@Nonnull CompoundTag tag) {
         super.load(tag);
-        this.items = NonNullList.withSize(this.getContainerSize(), ItemStack.EMPTY);
-        ContainerHelper.loadAllItems(tag, this.items);
+        if (tag.contains("Inventory")) {
+            this.items.deserializeNBT(tag.getCompound("Inventory"));
+        } else {
+            NonNullList<ItemStack> legacyItems = NonNullList.withSize(this.getContainerSize(), ItemStack.EMPTY);
+            ContainerHelper.loadAllItems(tag, legacyItems);
+            for (int i = 0; i < legacyItems.size(); i++) {
+                this.items.setStackInSlot(i, legacyItems.get(i));
+            }
+        }
         this.remainingBrewTime = tag.getShort("RemainingBrewTime");
         this.statusCode = tag.getShort("statusCode");
     }
@@ -232,7 +270,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     @Override
     public CompoundTag getUpdateTag() {
         CompoundTag tag = super.getUpdateTag();
-        ContainerHelper.saveAllItems(tag, this.items);
+        tag.put("Inventory", this.items.serializeNBT());
         tag.putShort("RemainingBrewTime", (short) this.remainingBrewTime);
         tag.putShort("statusCode", (short) this.statusCode);
         return tag;
@@ -240,20 +278,22 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
 
     @Override
     public void handleUpdateTag(CompoundTag tag) {
-        ContainerHelper.loadAllItems(tag, this.items);
+        if (tag.contains("Inventory")) {
+            this.items.deserializeNBT(tag.getCompound("Inventory"));
+        }
         this.remainingBrewTime = tag.getShort("RemainingBrewTime");
         this.statusCode = tag.getShort("statusCode");
     }
 
     @Override
     public int getContainerSize() {
-        return items.size();
+        return items.getSlots();
     }
 
     @Override
     public boolean isEmpty() {
-        for (ItemStack itemstack : this.items) {
-            if (!itemstack.isEmpty()) {
+        for (int i = 0; i < this.items.getSlots(); i++) {
+            if (!this.items.getStackInSlot(i).isEmpty()) {
                 return false;
             }
         }
@@ -262,23 +302,34 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
 
     @Override
     public ItemStack getItem(int p_70301_1_) {
-        return p_70301_1_ >= 0 && p_70301_1_ < this.items.size() ? this.items.get(p_70301_1_) : ItemStack.EMPTY;
+        return p_70301_1_ >= 0 && p_70301_1_ < this.items.getSlots() ? this.items.getStackInSlot(p_70301_1_) : ItemStack.EMPTY;
     }
 
     @Override
     public ItemStack removeItem(int p_70298_1_, int p_70298_2_) {
-        return ContainerHelper.removeItem(this.items, p_70298_1_, p_70298_2_);
+        if (p_70298_1_ < 0 || p_70298_1_ >= this.items.getSlots() || p_70298_2_ <= 0) {
+            return ItemStack.EMPTY;
+        }
+        return this.items.extractItem(p_70298_1_, p_70298_2_, false);
     }
 
     @Override
     public ItemStack removeItemNoUpdate(int p_70304_1_) {
-        return ContainerHelper.takeItem(this.items, p_70304_1_);
+        if (p_70304_1_ < 0 || p_70304_1_ >= this.items.getSlots()) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack itemStack = this.items.getStackInSlot(p_70304_1_);
+        this.items.setStackInSlot(p_70304_1_, ItemStack.EMPTY);
+        return itemStack;
     }
 
     @Override
     public void setItem(int p_70299_1_, ItemStack p_70299_2_) {
-        if (p_70299_1_ >= 0 && p_70299_1_ < this.items.size()) {
-            this.items.set(p_70299_1_, p_70299_2_);
+        if (p_70299_1_ >= 0 && p_70299_1_ < this.items.getSlots()) {
+            if (p_70299_1_ >= INGREDIENT_SLOT_START && p_70299_1_ <= INGREDIENT_SLOT_END) {
+                p_70299_2_.setCount(Math.min(p_70299_2_.getCount(), 1));
+            }
+            this.items.setStackInSlot(p_70299_1_, p_70299_2_);
         }
     }
 
@@ -298,6 +349,103 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
 
     @Override
     public void clearContent() {
-        this.items.clear();
+        for (int i = 0; i < this.items.getSlots(); i++) {
+            this.items.setStackInSlot(i, ItemStack.EMPTY);
+        }
+    }
+
+    public boolean isOutputReady() {
+        return statusCode == 2;
+    }
+
+    public NonNullList<ItemStack> getDrops() {
+        NonNullList<ItemStack> drops = NonNullList.create();
+        for (int i = 0; i < this.items.getSlots(); i++) {
+            if (i == OUTPUT_SLOT && !isOutputReady()) {
+                continue;
+            }
+            ItemStack itemStack = this.items.getStackInSlot(i);
+            if (!itemStack.isEmpty()) {
+                drops.add(itemStack.copy());
+            }
+        }
+        return drops;
+    }
+
+    @Nonnull
+    @Override
+    public <T> LazyOptional<T> getCapability(@Nonnull Capability<T> cap, @Nullable Direction side) {
+        if (cap == ForgeCapabilities.ITEM_HANDLER) {
+            return automationHandlerOptional.cast();
+        }
+        return super.getCapability(cap, side);
+    }
+
+    @Override
+    public void invalidateCaps() {
+        super.invalidateCaps();
+        automationHandlerOptional.invalidate();
+    }
+
+    private boolean isEmptyCup(ItemStack stack) {
+        return stack.is(lekavar.lma.drinkbeer.registries.ItemRegistry.EMPTY_BEER_MUG.get());
+    }
+
+    private boolean canAutomationInsert(int slot, ItemStack stack) {
+        if (statusCode != 0 || stack.isEmpty()) {
+            return false;
+        }
+        if (slot >= INGREDIENT_SLOT_START && slot <= INGREDIENT_SLOT_END) {
+            return true;
+        }
+        return slot == CUP_SLOT && isEmptyCup(stack);
+    }
+
+    private boolean canAutomationExtract(int slot) {
+        if (slot >= INGREDIENT_SLOT_START && slot <= INGREDIENT_SLOT_END) {
+            return this.items.getStackInSlot(slot).is(Items.BUCKET);
+        }
+        return slot == OUTPUT_SLOT && isOutputReady();
+    }
+
+    private class AutomationItemHandler implements IItemHandler {
+        @Override
+        public int getSlots() {
+            return items.getSlots();
+        }
+
+        @Nonnull
+        @Override
+        public ItemStack getStackInSlot(int slot) {
+            return items.getStackInSlot(slot);
+        }
+
+        @Nonnull
+        @Override
+        public ItemStack insertItem(int slot, @Nonnull ItemStack stack, boolean simulate) {
+            if (!canAutomationInsert(slot, stack)) {
+                return stack;
+            }
+            return items.insertItem(slot, stack, simulate);
+        }
+
+        @Nonnull
+        @Override
+        public ItemStack extractItem(int slot, int amount, boolean simulate) {
+            if (!canAutomationExtract(slot)) {
+                return ItemStack.EMPTY;
+            }
+            return items.extractItem(slot, amount, simulate);
+        }
+
+        @Override
+        public int getSlotLimit(int slot) {
+            return items.getSlotLimit(slot);
+        }
+
+        @Override
+        public boolean isItemValid(int slot, @Nonnull ItemStack stack) {
+            return canAutomationInsert(slot, stack);
+        }
     }
 }
