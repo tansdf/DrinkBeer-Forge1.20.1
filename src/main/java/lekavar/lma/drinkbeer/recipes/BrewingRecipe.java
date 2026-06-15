@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import lekavar.lma.drinkbeer.registries.RecipeRegistry;
 import net.minecraft.core.NonNullList;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.GsonHelper;
@@ -15,7 +16,6 @@ import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.common.crafting.CraftingHelper;
-import net.minecraftforge.registries.ForgeRegistryEntry;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -81,7 +81,7 @@ public class BrewingRecipe implements Recipe<IBrewingInventory> {
      * Returns an Item that is the result of this recipe
      */
     @Override
-    public ItemStack assemble(IBrewingInventory inventory) {
+    public ItemStack assemble(IBrewingInventory inventory, RegistryAccess registryAccess) {
         return result.copy();
     }
 
@@ -98,7 +98,7 @@ public class BrewingRecipe implements Recipe<IBrewingInventory> {
      * then return an empty stack.
      */
     @Override
-    public ItemStack getResultItem() {
+    public ItemStack getResultItem(RegistryAccess registryAccess) {
         //For Safety, I use #copy
         return result.copy();
     }
@@ -120,7 +120,7 @@ public class BrewingRecipe implements Recipe<IBrewingInventory> {
 
     @Override
     public RecipeType<?> getType() {
-        return RecipeRegistry.Type.BREWING;
+        return RecipeRegistry.BREWING_TYPE.get();
     }
 
     public int getRequiredCupCount() {
@@ -135,7 +135,7 @@ public class BrewingRecipe implements Recipe<IBrewingInventory> {
         return brewingTime;
     }
 
-    public static class Serializer extends ForgeRegistryEntry<RecipeSerializer<?>> implements RecipeSerializer<BrewingRecipe> {
+    public static class Serializer implements RecipeSerializer<BrewingRecipe> {
 
         @Override
         public BrewingRecipe fromJson(ResourceLocation resourceLocation, JsonObject jsonObject) {

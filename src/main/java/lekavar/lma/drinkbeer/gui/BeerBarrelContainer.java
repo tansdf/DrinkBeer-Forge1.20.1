@@ -4,7 +4,6 @@ import lekavar.lma.drinkbeer.registries.ContainerTypeRegistry;
 import lekavar.lma.drinkbeer.registries.ItemRegistry;
 import lekavar.lma.drinkbeer.registries.SoundEventRegistry;
 import lekavar.lma.drinkbeer.blockentities.BeerBarrelBlockEntity;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.sounds.SoundEvents;
@@ -54,7 +53,7 @@ public class BeerBarrelContainer extends AbstractContainerMenu {
     }
 
     public BeerBarrelContainer(int id, Inventory playerInventory, BlockPos pos) {
-        this(id, ((BeerBarrelBlockEntity) Minecraft.getInstance().level.getBlockEntity(pos)), ((BeerBarrelBlockEntity) Minecraft.getInstance().level.getBlockEntity(pos)).syncData, playerInventory, ((BeerBarrelBlockEntity) Minecraft.getInstance().level.getBlockEntity(pos)));
+        this(id, ((BeerBarrelBlockEntity) playerInventory.player.level().getBlockEntity(pos)), ((BeerBarrelBlockEntity) playerInventory.player.level().getBlockEntity(pos)).syncData, playerInventory, ((BeerBarrelBlockEntity) playerInventory.player.level().getBlockEntity(pos)));
     }
 
     private int addSlotRange(IItemHandler handler, int index, int x, int y, int amount, int dx) {
@@ -157,7 +156,7 @@ public class BeerBarrelContainer extends AbstractContainerMenu {
 
     @Override
     public void removed(Player player) {
-        if (!player.level.isClientSide()) {
+        if (!player.level().isClientSide()) {
             // Return Item to Player;
             for (int i = 0; i < 5; i++) {
                 if (!brewingSpace.getItem(i).isEmpty()) {
@@ -166,7 +165,7 @@ public class BeerBarrelContainer extends AbstractContainerMenu {
             }
         } else {
             // Play Closing Barrel Sound
-            player.level.playSound(player, player.blockPosition(), SoundEvents.BARREL_CLOSE, SoundSource.BLOCKS, 1f, 1f);
+            player.level().playSound(player, player.blockPosition(), SoundEvents.BARREL_CLOSE, SoundSource.BLOCKS, 1f, 1f);
         }
         super.removed(player);
     }
@@ -197,14 +196,7 @@ public class BeerBarrelContainer extends AbstractContainerMenu {
         // statusCode reset is handled by TileEntity#tick
         @Override
         public void onTake(Player p_190901_1_, ItemStack p_190901_2_) {
-            /*if(p_190901_2_.getItem() == ItemRegistry.BEER_MUG_FROTHY_PINK_EGGNOG.get()){
-                p_190901_1_.level.playSound((PlayerEntity)null, beerBarrelTileEntity.getBlockPos(), SoundEventRegistry.POURING_CHRISTMAS_VER.get(), SoundCategory.BLOCKS, 1.0F, 1.0F);
-                //p_190901_1_.level.playSound(p_190901_1_, p_190901_1_.blockPosition(), SoundEventRegistry.POURING_CHRISTMAS_VER.get(), SoundCategory.BLOCKS, 1f, 1f);
-
-            } else {*/
-            p_190901_1_.level.playSound((Player) null, beerBarrelBlockEntity.getBlockPos(), SoundEventRegistry.POURING.get(), SoundSource.BLOCKS, 1.0F, 1.0F);
-            //p_190901_1_.level.playSound(p_190901_1_, p_190901_1_.blockPosition(), SoundEventRegistry.POURING.get(), SoundCategory.BLOCKS, 1f, 1f);
-            //}
+            p_190901_1_.level().playSound((Player) null, beerBarrelBlockEntity.getBlockPos(), SoundEventRegistry.POURING.get(), SoundSource.BLOCKS, 1.0F, 1.0F);
         }
 
         // Placing item on output slot is prohibited.

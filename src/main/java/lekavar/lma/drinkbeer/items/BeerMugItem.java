@@ -2,11 +2,10 @@ package lekavar.lma.drinkbeer.items;
 
 import lekavar.lma.drinkbeer.registries.ItemRegistry;
 import lekavar.lma.drinkbeer.registries.SoundEventRegistry;
-import lekavar.lma.drinkbeer.utils.ModCreativeTab;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
-import net.minecraft.network.chat.TranslatableComponent;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Containers;
@@ -39,19 +38,19 @@ public class BeerMugItem extends BlockItem {
     private final boolean hasExtraTooltip;
 
     public BeerMugItem(Block block, int nutrition, boolean hasExtraTooltip) {
-        super(block, new Item.Properties().tab(ModCreativeTab.BEAR).stacksTo(16)
+        super(block, new Item.Properties().stacksTo(16)
                 .food(new FoodProperties.Builder().nutrition(nutrition).alwaysEat().build()));
         this.hasExtraTooltip = hasExtraTooltip;
     }
 
     public BeerMugItem(Block block, int nutrition, MobEffect effect, int duration, boolean hasExtraTooltip) {
-        super(block, new Item.Properties().tab(ModCreativeTab.BEAR).stacksTo(16)
+        super(block, new Item.Properties().stacksTo(16)
                 .food(new FoodProperties.Builder().nutrition(nutrition).alwaysEat().effect(() -> new MobEffectInstance(effect, duration), 1).build()));
         this.hasExtraTooltip = hasExtraTooltip;
     }
 
     public BeerMugItem(Block block, int nutrition, Supplier<MobEffectInstance> effectIn, boolean hasExtraTooltip) {
-        super(block, new Item.Properties().tab(ModCreativeTab.BEAR).stacksTo(16)
+        super(block, new Item.Properties().stacksTo(16)
                 .food(new FoodProperties.Builder().nutrition(nutrition).alwaysEat().effect(effectIn, 1).build()));
         this.hasExtraTooltip = hasExtraTooltip;
     }
@@ -75,10 +74,10 @@ public class BeerMugItem extends BlockItem {
     public void appendHoverText(ItemStack stack, @Nullable Level world, List<Component> tooltip, TooltipFlag flag) {
         String name = this.asItem().toString();
         if (hasEffectNoticeTooltip()) {
-            tooltip.add(new TranslatableComponent("item.drinkbeer." + name + ".tooltip").setStyle(Style.EMPTY.applyFormat(ChatFormatting.BLUE)));
+            tooltip.add(Component.translatable("item.drinkbeer." + name + ".tooltip").setStyle(Style.EMPTY.applyFormat(ChatFormatting.BLUE)));
         }
-        String hunger = String.valueOf(stack.getItem().getFoodProperties().getNutrition());
-        tooltip.add(new TranslatableComponent("drinkbeer.restores_hunger").setStyle(Style.EMPTY.applyFormat(ChatFormatting.BLUE)).append(hunger));
+        String hunger = String.valueOf(stack.getItem().getFoodProperties(stack, null).getNutrition());
+        tooltip.add(Component.translatable("drinkbeer.restores_hunger").setStyle(Style.EMPTY.applyFormat(ChatFormatting.BLUE)).append(hunger));
     }
 
     private boolean hasEffectNoticeTooltip() {
@@ -120,7 +119,10 @@ public class BeerMugItem extends BlockItem {
     }
 
     private SoundEvent getRandomNightHowlSound() {
-        List<SoundEvent> available = ForgeRegistries.SOUND_EVENTS.getValues().stream().filter(soundEvent -> soundEvent.getRegistryName().toString().contains("night_howl_drinking_effect")).collect(Collectors.toList());
+        List<SoundEvent> available = ForgeRegistries.SOUND_EVENTS.getValues().stream().filter(soundEvent -> {
+            ResourceLocation key = ForgeRegistries.SOUND_EVENTS.getKey(soundEvent);
+            return key != null && key.toString().contains("night_howl_drinking_effect");
+        }).collect(Collectors.toList());
         return available.get(new Random().nextInt(available.size()));
     }
 }

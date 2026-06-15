@@ -22,11 +22,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
-import net.minecraft.world.level.material.Material;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.fmllegacy.network.NetworkHooks;
+import net.minecraftforge.network.NetworkHooks;
 
 import javax.annotation.Nullable;
 
@@ -36,7 +35,7 @@ public class BeerBarrelBlock extends Block implements EntityBlock {
     protected static final VoxelShape SHAPE = Block.box(1, 0, 1, 15, 15, 15);
 
     public BeerBarrelBlock() {
-        super(Properties.of(Material.WOOD).strength(2.0f).noOcclusion());
+        super(Properties.copy(net.minecraft.world.level.block.Blocks.BARREL).strength(2.0f).noOcclusion());
         this.registerDefaultState(this.defaultBlockState().setValue(FACING, Direction.NORTH));
     }
 
@@ -62,7 +61,7 @@ public class BeerBarrelBlock extends Block implements EntityBlock {
             world.playSound(null, pos, SoundEvents.BARREL_OPEN, SoundSource.BLOCKS, 1f, 1f);
 
             BeerBarrelBlockEntity beerBarrelBlockEntity = (BeerBarrelBlockEntity) world.getBlockEntity(pos);
-            NetworkHooks.openGui((ServerPlayer) player, beerBarrelBlockEntity, (FriendlyByteBuf packerBuffer) -> {
+            NetworkHooks.openScreen((ServerPlayer) player, beerBarrelBlockEntity, (FriendlyByteBuf packerBuffer) -> {
                 packerBuffer.writeBlockPos(beerBarrelBlockEntity.getBlockPos());
             });
         }

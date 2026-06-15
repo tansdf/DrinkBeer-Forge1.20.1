@@ -10,7 +10,6 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.ContainerHelper;
 import net.minecraft.world.MenuProvider;
@@ -21,7 +20,6 @@ import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.MilkBucketItem;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -62,7 +60,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
 
         @Override
         public int getCount() {
-            return 1;
+            return 2;
         }
     };
 
@@ -76,7 +74,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
             // ingredient slots must have no empty slot
             if (!getIngredients().contains(ItemStack.EMPTY)) {
                 // Try match Recipe
-                BrewingRecipe recipe = level.getRecipeManager().getRecipeFor(RecipeRegistry.Type.BREWING, this, this.level).orElse(null);
+                BrewingRecipe recipe = level.getRecipeManager().getRecipeFor(RecipeRegistry.BREWING_TYPE.get(), this, this.level).orElse(null);
                 if (canBrew(recipe)) {
                     // Show Standard Brewing Time & Result
                     showPreview(recipe);
@@ -140,7 +138,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     private void startBrewing(BrewingRecipe recipe) {
         // Pre-set bear to output Slot
         // This Step must be done first
-        items.set(5, recipe.assemble(this));
+        items.set(5, recipe.assemble(this, level.registryAccess()));
         // Consume Ingredient & Cup;
         for (int i = 0; i < 4; i++) {
             ItemStack ingred = items.get(i);
@@ -157,7 +155,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     }
 
     private boolean isBucket(ItemStack itemStack) {
-        return itemStack.getItem() instanceof BucketItem || itemStack.getItem() instanceof MilkBucketItem;
+        return itemStack.getItem() instanceof BucketItem;
     }
 
     private void clearPreview() {
@@ -167,7 +165,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     }
 
     private void showPreview(BrewingRecipe recipe) {
-        items.set(5, recipe.assemble(this));
+        items.set(5, recipe.assemble(this, level.registryAccess()));
         remainingBrewTime = recipe.getBrewingTime();
         setChanged();
     }
@@ -190,12 +188,11 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     }
 
     @Override
-    public CompoundTag save(CompoundTag tag) {
+    protected void saveAdditional(CompoundTag tag) {
+        super.saveAdditional(tag);
         ContainerHelper.saveAllItems(tag, this.items);
         tag.putShort("RemainingBrewTime", (short) this.remainingBrewTime);
         tag.putShort("statusCode", (short) this.statusCode);
-        super.save(tag);
-        return tag;
     }
 
     @Override
@@ -209,7 +206,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
 
     @Override
     public Component getDisplayName() {
-        return new TranslatableComponent("block.drinkbeer.beer_barrel");
+        return Component.translatable("block.drinkbeer.beer_barrel");
     }
 
     @Nullable
@@ -220,13 +217,16 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
 
     @Override
     public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket pkt) {
-        handleUpdateTag(pkt.getTag());
+        CompoundTag tag = pkt.getTag();
+        if (tag != null) {
+            handleUpdateTag(tag);
+        }
     }
 
     @Nullable
     @Override
     public ClientboundBlockEntityDataPacket getUpdatePacket() {
-        return new ClientboundBlockEntityDataPacket(worldPosition, 1, getUpdateTag());
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     @Override
@@ -234,6 +234,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
         CompoundTag tag = super.getUpdateTag();
         ContainerHelper.saveAllItems(tag, this.items);
         tag.putShort("RemainingBrewTime", (short) this.remainingBrewTime);
+        tag.putShort("statusCode", (short) this.statusCode);
         return tag;
     }
 
@@ -241,6 +242,7 @@ public class BeerBarrelBlockEntity extends BlockEntity implements MenuProvider, 
     public void handleUpdateTag(CompoundTag tag) {
         ContainerHelper.loadAllItems(tag, this.items);
         this.remainingBrewTime = tag.getShort("RemainingBrewTime");
+        this.statusCode = tag.getShort("statusCode");
     }
 
     @Override
